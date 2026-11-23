@@ -1,0 +1,5 @@
+bin/
+*.exe
+*.zip
+업무대장.xml*
+*.xlsx
