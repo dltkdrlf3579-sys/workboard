@@ -11,7 +11,7 @@ Windows의 .NET Framework 4.x C# 컴파일러와 WPF 어셈블리를 사용합�
 .\bin\WorkBoard.exe
 ```
 
-WorkBoard.cs는 게시판 화면과 저장을, ExcelReport.cs는 선택한 업무의 XLSX 출력을 담당합니다. 빌드 결과와 개인 업무 기록은 Git 추적에서 제외합니다. 기록을 백업할 때는 프로그램을 닫고 bin 폴더의 업무대장.xml을 복사하세요.
+WorkBoard.cs는 업무 편집과 저장을, WorkBoardView.cs와 Theme.xaml은 화면 구성을, ExcelReport.cs는 선택한 업무의 XLSX 출력을 담당합니다. Theme.xaml은 빌드할 때 실행 파일에 포함됩니다. 빌드 결과와 개인 업무 기록은 Git 추적에서 제외합니다. 기록을 백업할 때는 프로그램을 닫고 bin 폴더의 업무대장.xml을 복사하세요.
 
 ## PC를 바꾸거나 새 버전으로 옮길 때
 
