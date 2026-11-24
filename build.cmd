@@ -9,7 +9,7 @@ if not exist "%fx%\WPF\PresentationFramework.dll" (
   exit /b 1
 )
 if not exist "bin\" mkdir "bin" || exit /b 1
-"%fx%\csc.exe" /nologo /target:winexe /out:"bin\WorkBoard.exe" /r:"%fx%\WPF\PresentationFramework.dll" /r:"%fx%\WPF\PresentationCore.dll" /r:"%fx%\WPF\WindowsBase.dll" /r:System.Xaml.dll /r:System.Xml.Linq.dll /r:System.IO.Compression.dll /resource:Theme.xaml,WorkBoard.Theme.xaml WorkBoard.cs WorkBoardView.cs ExcelReport.cs
+"%fx%\csc.exe" /nologo /target:winexe /out:"bin\WorkBoard.exe" /r:"%fx%\WPF\PresentationFramework.dll" /r:"%fx%\WPF\PresentationCore.dll" /r:"%fx%\WPF\WindowsBase.dll" /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Xaml.dll /r:System.Xml.Linq.dll /r:System.IO.Compression.dll /resource:Theme.xaml,WorkBoard.Theme.xaml WorkBoard.cs WorkBoardView.cs ExcelReport.cs
 set "result=%errorlevel%"
 if "%result%"=="0" echo Built bin\WorkBoard.exe
 popd

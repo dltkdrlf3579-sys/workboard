@@ -68,11 +68,12 @@
     </Setter.Value></Setter>
   </Style>
   <Style x:Key="ArticleInput" BasedOn="{StaticResource {x:Type TextBox}}" TargetType="TextBox">
-    <Setter Property="BorderBrush" Value="Transparent"/><Setter Property="Padding" Value="4,0"/>
+    <Setter Property="BorderBrush" Value="#C6CEC9"/><Setter Property="Padding" Value="10,0"/>
+    <Setter Property="Background" Value="#FAFBFA"/><Setter Property="Height" Value="36"/>
     <Style.Triggers>
-      <MultiTrigger><MultiTrigger.Conditions>
-        <Condition Property="IsReadOnly" Value="False"/><Condition Property="IsMouseOver" Value="True"/>
-      </MultiTrigger.Conditions><Setter Property="Background" Value="#F6F8F6"/></MultiTrigger>
+      <Trigger Property="IsMouseOver" Value="True"><Setter Property="BorderBrush" Value="#84998B"/></Trigger>
+      <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="Background" Value="White"/></Trigger>
+      <Trigger Property="IsReadOnly" Value="True"><Setter Property="Background" Value="#F1F3F2"/><Setter Property="BorderBrush" Value="#E1E5E2"/></Trigger>
     </Style.Triggers>
   </Style>
   <Style x:Key="Pick" TargetType="CheckBox">

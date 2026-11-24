@@ -53,6 +53,32 @@ public partial class Board
         TextOptions.SetTextFormattingMode(window, TextFormattingMode.Display);
     }
 
+    static void SizeToWorkArea(Window window, double maxWidth, double maxHeight, double minWidth, double minHeight)
+    {
+        var area = SystemParameters.WorkArea;
+        var owner = window.Owner;
+        if (owner != null)
+        {
+            var source = PresentationSource.FromVisual(owner);
+            if (source != null && source.CompositionTarget != null)
+            {
+                var handle = new System.Windows.Interop.WindowInteropHelper(owner).Handle;
+                var bounds = System.Windows.Forms.Screen.FromHandle(handle).WorkingArea;
+                var scale = source.CompositionTarget.TransformFromDevice;
+                area = new Rect(0, 0, bounds.Width * scale.M11, bounds.Height * scale.M22);
+            }
+        }
+        window.MinWidth = Math.Min(minWidth, area.Width);
+        window.MinHeight = Math.Min(minHeight, area.Height);
+        window.Width = Math.Max(window.MinWidth, Math.Min(maxWidth, area.Width * 0.92));
+        window.Height = Math.Max(window.MinHeight, Math.Min(maxHeight, area.Height * 0.92));
+        if (owner == null)
+        {
+            window.Left = area.Left + (area.Width - window.Width) / 2;
+            window.Top = area.Top + (area.Height - window.Height) / 2;
+        }
+    }
+
     static StackPanel Line() { return new StackPanel { Orientation = Orientation.Horizontal }; }
     static void DockTop(DockPanel panel, UIElement child)
     {
@@ -113,7 +139,7 @@ public partial class Board
     void BuildBoard()
     {
         Title = "업무 목록";
-        Width = 1080; Height = 650; MinWidth = 820; MinHeight = 420;
+        SizeToWorkArea(this, 1520, 990, 820, 420);
         SetAppearance(this);
         var page = new DockPanel { Margin = new Thickness(28, 24, 28, 22) };
         Content = new Border { Background = canvas, Child = page };
