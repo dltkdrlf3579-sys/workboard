@@ -80,25 +80,17 @@ public partial class Board : Window {
  static Button FooterAction(string caption, Action action){
      var button=Btn(caption,action,true);button.MinWidth=80;button.Margin=new Thickness(8,0,0,0);return button;
  }
- static StackPanel FieldGroup(Grid grid, int column, string caption){
-     var group = new StackPanel { Margin = new Thickness(0,0,column == grid.ColumnDefinitions.Count-1 ? 0 : 12,0) };
-     Cell(grid,column,group);
-     var label = Text(caption,12,muted,true);
-     label.Margin=new Thickness(0,0,0,5); group.Children.Add(label);
-     return group;
- }
- static Grid FieldLine(Panel parent, params double[] widths){
-     var grid=new Grid { Margin=new Thickness(0,0,0,12) };
-     foreach(double width in widths)grid.ColumnDefinitions.Add(new ColumnDefinition { Width=new GridLength(width,GridUnitType.Star) });
-     parent.Children.Add(grid);
-     return grid;
- }
- static TextBox EditorField(Grid grid, int column, string caption, string value){
-     var group=FieldGroup(grid,column,caption);
-     var input=new TextBox { Text=value };
-     System.Windows.Automation.AutomationProperties.SetName(input,caption);
-     group.Children.Add(input);
+ static TextBox ArticleInput(string name, string value, string hint){
+     var input=new TextBox { Text=value, Tag=hint, Style=(Style)theme["ArticleInput"] };
+     System.Windows.Automation.AutomationProperties.SetName(input,name);
      return input;
+ }
+ static TextBox Metadata(Panel row,string caption,string value,string hint,double width){
+     var group=Line(); group.Margin=new Thickness(0,0,20,0);
+     group.Children.Add(Text(caption,13,muted));
+     var input=ArticleInput(caption,value,hint); input.Width=width;
+     input.Margin=new Thickness(4,0,0,0); group.Children.Add(input);
+     row.Children.Add(group); return input;
  }
  static void Preview(Window owner,BitmapSource bitmap){
      var viewer=new Window{Owner=owner,Title="캡처 원본",Width=880,Height=620,WindowStartupLocation=WindowStartupLocation.CenterOwner};
@@ -122,36 +114,48 @@ public partial class Board : Window {
  public static FlowDocument Document(Job j){var d=new FlowDocument();if(j.Body!=null)using(var m=new MemoryStream(j.Body))new TextRange(d.ContentStart,d.ContentEnd).Load(m,DataFormats.XamlPackage);return d;}
  void Edit(Job old){var j=old??new Job{Received=Day(DateTime.Today)};var w=new Window{Owner=this,Title=old==null?"새 업무":"업무 상세",Width=900,Height=700,MinHeight=530,MinWidth=650,WindowStartupLocation=WindowStartupLocation.CenterOwner};
  SetAppearance(w);
- var page=new DockPanel { Margin=new Thickness(24,16,24,16) };
- w.Content=new Border { Background=canvas, Child=page };
- var heading=Text(w.Title,23,ink,true);
- heading.Margin=new Thickness(0,0,0,14); DockTop(page,heading);
- var foot=new DockPanel { Margin=new Thickness(0,14,0,0) };
- DockPanel.SetDock(foot,Dock.Bottom); page.Children.Add(foot);
- var danger=Line(); foot.Children.Add(danger);
- var footer=Line(); footer.HorizontalAlignment=HorizontalAlignment.Right; foot.Children.Add(footer);
- var content=new DockPanel();
- var card=PanelEdge(content); page.Children.Add(card);
- var fields=new StackPanel { Margin=new Thickness(18,15,18,2) }; DockTop(content,fields);
- var first=FieldLine(fields,2,1);
- var title=EditorField(first,0,"업무명",j.Title); title.FontSize=15; title.FontWeight=FontWeights.SemiBold;
- var memo=EditorField(first,1,"비고",j.Memo);
- var second=FieldLine(fields,1.3,1,1,1);
- var who=EditorField(second,0,"요청자 / 부서",j.Who);
- var received=EditorField(second,1,"접수일",j.Received);
- var due=EditorField(second,2,"완료예정일",j.Due);
- var statusBox=FieldGroup(second,3,"상태");
- var state=new ComboBox { Style=(Style)theme["StateSelector"], ItemsSource=new[]{"진행중","회신대기","완료"},SelectedItem=j.State,
-     Height=34, Padding=new Thickness(8,3,8,3), VerticalContentAlignment=VerticalAlignment.Center };
- System.Windows.Automation.AutomationProperties.SetName(state,"상태");
- statusBox.Children.Add(state); DockTop(content,Rule());
- var section=Text("업무 내용",14,ink,true);
- section.Margin=new Thickness(18,14,18,6); DockTop(content,section);
+ var page=new DockPanel { Background=Brushes.White };
+ w.Content=page;
+ var toolbar=new DockPanel { Margin=new Thickness(16,8,16,8) };
+ DockTop(page,toolbar); DockTop(page,Rule());
+ var footer=Line(); DockPanel.SetDock(footer,Dock.Right); toolbar.Children.Add(footer);
+ var back=Quiet(j.Trash ? "‹  휴지통" : "‹  업무 목록",()=>w.Close());
+ back.HorizontalAlignment=HorizontalAlignment.Left; toolbar.Children.Add(back);
+
+ var article=new DockPanel { MaxWidth=900, Margin=new Thickness(36,22,36,18) };
+ page.Children.Add(article);
+ var fields=new StackPanel(); DockTop(article,fields);
+ var state=new ComboBox { Style=(Style)theme["StateSelector"], ItemsSource=new[]{"진행중","회신대기","완료"},
+     SelectedItem=j.State, HorizontalAlignment=HorizontalAlignment.Left, Width=99, Height=28,
+     Foreground=accent, FontWeight=FontWeights.SemiBold };
+ System.Windows.Automation.AutomationProperties.SetName(state,"상태"); fields.Children.Add(state);
+ var title=ArticleInput("업무명",j.Title,"업무명 입력");
+ title.FontSize=28; title.FontWeight=FontWeights.Bold; title.Height=double.NaN; title.MinHeight=46;
+ title.TextWrapping=TextWrapping.Wrap; title.MaxLines=3; title.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;
+ title.Margin=new Thickness(-4,7,0,2); fields.Children.Add(title);
+ var byline=new WrapPanel(); fields.Children.Add(byline);
+ var who=Metadata(byline,"요청자 / 부서",j.Who,"입력",142);
+ var received=Metadata(byline,"접수일",j.Received,"연-월-일",114);
+ var meta=new WrapPanel { Margin=new Thickness(0,0,0,12) }; fields.Children.Add(meta);
+ var due=Metadata(meta,"완료예정일",j.Due,"미정",140);
+ var memo=Metadata(meta,"비고",j.Memo,"입력",170);
+ DockTop(article,Rule());
+
  var body=new RichTextBox(Document(j)) { VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
-     BorderThickness=new Thickness(0), Margin=new Thickness(12,0,12,10), FontSize=14,
-     Background=Brushes.White, Foreground=ink, IsDocumentEnabled=true };
- content.Children.Add(body);
+     Margin=new Thickness(-4,12,0,0), Padding=new Thickness(3), FontSize=15,
+     Background=Brushes.White, Foreground=ink, BorderThickness=new Thickness(1),
+     BorderBrush=Brushes.Transparent, IsDocumentEnabled=true };
+ body.Document.PagePadding=new Thickness(0);
+ body.IsKeyboardFocusWithinChanged+=(o,e)=>body.BorderBrush=body.IsKeyboardFocusWithin && !body.IsReadOnly ? accent : Brushes.Transparent;
+ var bodyArea=new Grid(); article.Children.Add(bodyArea); bodyArea.Children.Add(body);
  System.Windows.Automation.AutomationProperties.SetName(body,"업무 내용");
+ if(old==null){
+     var hint=Text("업무 내용을 쓰거나 캡처를 붙여넣으세요.",14,muted);
+     hint.Margin=new Thickness(2,19,0,0); hint.VerticalAlignment=VerticalAlignment.Top;
+     hint.IsHitTestVisible=false; bodyArea.Children.Add(hint);
+     body.TextChanged+=(o,e)=>hint.Visibility=Visibility.Collapsed;
+     body.GotKeyboardFocus+=(o,e)=>hint.Visibility=Visibility.Collapsed;
+ }
  for(var pos=body.Document.ContentStart;pos!=null;pos=pos.GetNextContextPosition(LogicalDirection.Forward)){
      if(pos.GetPointerContext(LogicalDirection.Forward)!=TextPointerContext.EmbeddedElement)continue;
      var embedded=pos.GetAdjacentElement(LogicalDirection.Forward) as Image;if(embedded!=null)ConfigureImage(w,body,embedded);
@@ -159,13 +163,26 @@ public partial class Board : Window {
  if(j.Trash){
      foreach(var input in new[]{title,who,received,due,memo})input.IsReadOnly=true;
      state.IsEnabled=false;body.IsReadOnly=true;
-     danger.Children.Add(Danger("영구 삭제",()=>{if(DeleteForever(j))w.Close();}));footer.Children.Add(Quiet("닫기",()=>w.Close()));
+     footer.Children.Add(Danger("영구 삭제",()=>{if(DeleteForever(j))w.Close();}));
      footer.Children.Add(FooterAction("복원",()=>{if(MoveTrash(j))w.Close();}));w.ShowDialog();return;
  }
  bool dirty=false,closed=false;foreach(var t in new[]{title,who,received,due,memo})t.TextChanged+=(o,e)=>dirty=true;state.SelectionChanged+=(o,e)=>dirty=true;body.TextChanged+=(o,e)=>dirty=true;
  DataObject.AddPastingHandler(body,(o,e)=>{if(e.DataObject.GetDataPresent(DataFormats.Bitmap)){var image=e.DataObject.GetData(DataFormats.Bitmap) as BitmapSource;if(image!=null){e.CancelCommand();body.Selection.Text="";var picture=new Image{Source=image};ConfigureImage(w,body,picture);var inline=new InlineUIContainer(picture,body.CaretPosition);body.CaretPosition=inline.ElementEnd;}}else if(e.DataObject.GetDataPresent(DataFormats.UnicodeText))e.FormatToApply=DataFormats.UnicodeText;});
  Func<bool> save=()=>{var date=Date(received.Text,DateTime.Today.Year);if(title.Text.Trim()==""||!date.HasValue){MessageBox.Show("업무명과 접수일을 확인하세요.");return false;}var k=j.Copy();k.Title=title.Text.Trim();k.Who=who.Text;k.Received=Day(date.Value);string raw=due.Text.Trim();var dd=Date(raw,date.Value.Year);k.Due=dd.HasValue?Day(dd.Value):raw;k.Memo=memo.Text;k.State=(string)state.SelectedItem;k.Finished=k.State=="완료"?(j.Finished==""?Day(DateTime.Today):j.Finished):"";using(var m=new MemoryStream()){new TextRange(body.Document.ContentStart,body.Document.ContentEnd).Save(m,DataFormats.XamlPackage);k.Body=m.ToArray();}Update(old,k);closed=true;return true;};
- Action finish=()=>{if(save())w.Close();};if(old!=null)danger.Children.Add(Danger("삭제",()=>{if(MoveTrash(j)){closed=true;w.Close();}}));footer.Children.Add(Btn(j.State=="완료"?"다시 진행":"작업완료",()=>{state.SelectedItem=j.State=="완료"?"진행중":"완료";finish();}));footer.Children.Add(FooterAction("저장",finish));w.PreviewKeyDown+=(o,e)=>{if(e.Key==Key.S&&Keyboard.Modifiers==ModifierKeys.Control){e.Handled=true;try{finish();}catch(Exception ex){MessageBox.Show(ex.Message);}}};w.Closing+=(o,e)=>{if(closed||!dirty)return;var a=MessageBox.Show(w,"변경 사항을 저장하고 닫을까요?","업무 상세",MessageBoxButton.YesNoCancel);try{e.Cancel=a==MessageBoxResult.Cancel||(a==MessageBoxResult.Yes&&!save());}catch(Exception ex){MessageBox.Show(ex.Message);e.Cancel=true;}};title.Focus();w.ShowDialog();}
+ Action finish=()=>{if(save())w.Close();};
+ footer.Children.Add(Btn(j.State=="완료"?"다시 진행":"작업완료",()=>{
+     state.SelectedItem=j.State=="완료"?"진행중":"완료";finish();
+ }));
+ footer.Children.Add(FooterAction("저장",finish));
+ if(old!=null){
+     var menu=new ContextMenu();
+     menu.Items.Add(Option("휴지통으로 이동",()=>{if(MoveTrash(j)){closed=true;w.Close();}}));
+     var more=Quiet("⋯",()=>menu.IsOpen=true);
+     more.FontSize=18;more.ToolTip="더 보기";menu.PlacementTarget=more;
+     menu.Placement=System.Windows.Controls.Primitives.PlacementMode.Bottom;
+     footer.Children.Add(more);
+ }
+ w.PreviewKeyDown+=(o,e)=>{if(e.Key==Key.S&&Keyboard.Modifiers==ModifierKeys.Control){e.Handled=true;try{finish();}catch(Exception ex){MessageBox.Show(ex.Message);}}};w.Closing+=(o,e)=>{if(closed||!dirty)return;var a=MessageBox.Show(w,"변경 사항을 저장하고 닫을까요?","업무 상세",MessageBoxButton.YesNoCancel);try{e.Cancel=a==MessageBoxResult.Cancel||(a==MessageBoxResult.Yes&&!save());}catch(Exception ex){MessageBox.Show(ex.Message);e.Cancel=true;}};if(old==null)w.ContentRendered+=(o,e)=>title.Focus();w.ShowDialog();}
  void Export(){var selected=Visible().Where(picks.Contains).ToList();if(selected.Count==0)return;var detail=MessageBox.Show("선택한 업무 "+selected.Count+"건에 본문과 캡처를 담은 상세 시트도 포함할까요?","엑셀 내보내기",MessageBoxButton.YesNoCancel);if(detail==MessageBoxResult.Cancel)return;var dlg=new SaveFileDialog{Filter="Excel (*.xlsx)|*.xlsx",FileName="업무일정_"+Day(DateTime.Today)};if(dlg.ShowDialog()!=true)return;ExcelReport.Write(dlg.FileName,selected,detail==MessageBoxResult.Yes);MessageBox.Show("엑셀 파일을 저장했습니다.");}
  [STAThread] public static void Main(){bool first;using(var gate=new System.Threading.Mutex(true,"Local\\PersonalWorkBoard_4827",out first)){if(!first){MessageBox.Show("업무대장이 이미 열려 있습니다.");return;}try{new Application().Run(new Board());}catch(Exception ex){MessageBox.Show(ex.Message,"업무대장");}}}
 }

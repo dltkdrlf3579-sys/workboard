@@ -15,8 +15,8 @@ public partial class Board
 {
     static readonly ResourceDictionary theme = LoadTheme();
     static readonly Dictionary<string, Brush> colors = new Dictionary<string, Brush>();
-    static readonly Brush ink = Paint("#242635"), muted = Paint("#585C6E"), accent = Paint("#5149BC");
-    static readonly Brush line = Paint("#E1E3EC"), canvas = Paint("#F5F6FA");
+    static readonly Brush ink = Paint("#202422"), muted = Paint("#616863"), accent = Paint("#17603F");
+    static readonly Brush line = Paint("#E2E5E2"), canvas = Paint("#FFFFFF");
     readonly Dictionary<Job, CheckBox> checks = new Dictionary<Job, CheckBox>();
     StackPanel headerHost;
     CheckBox selectAll;
@@ -78,7 +78,6 @@ public partial class Board
             Width = size, Height = size, VerticalAlignment = VerticalAlignment.Center
         };
     }
-    const string listIcon = "M2,3 H16 V17 H2 Z M5,7 H6 M8.5,7 H13 M5,11 H6 M8.5,11 H13";
     const string calendarIcon = "M2,4 H16 V16 H2 Z M2,8 H16 M6,2 V6 M12,2 V6";
     const string plusIcon = "M8,2 V14 M2,8 H14";
     const string trashIcon = "M2,5 H16 M5,5 L6,17 H12 L13,5 M7,5 V2 H11 V5";
@@ -109,11 +108,6 @@ public partial class Board
         button.Content = content;
         AutomationProperties.SetName(button, caption);
     }
-    static Border PanelEdge(UIElement content)
-    {
-        return new Border { Background = Brushes.White, BorderBrush = line, BorderThickness = new Thickness(1),
-                            CornerRadius = new CornerRadius(10), Child = content };
-    }
     static Border Rule() { return new Border { Height = 1, Background = line }; }
 
     void BuildBoard()
@@ -135,16 +129,13 @@ public partial class Board
         create.Margin = new Thickness(12,0,0,0);
         actions.Children.Add(create);
         var title = Line(); bar.Children.Add(title);
-        title.Children.Add(new Border {
-            Width = 39, Height = 39, Background = Paint("#ECEAFC"), CornerRadius = new CornerRadius(11),
-            Margin = new Thickness(0,0,12,0), Child = Glyph(listIcon, accent, 22)
-        });
         heading = Text("업무 목록",28,ink,true);
         title.Children.Add(heading);
 
         var card = new DockPanel();
-        page.Children.Add(PanelEdge(card));
-        var nav = new DockPanel { Margin = new Thickness(12,0,13,0), Height = 58 };
+        page.Children.Add(card);
+        DockTop(card,Rule());
+        var nav = new DockPanel { Margin = new Thickness(0), Height = 58 };
         DockTop(card, nav);
         var filters = Line();
         filters.VerticalAlignment = VerticalAlignment.Center;
@@ -172,7 +163,7 @@ public partial class Board
         filters.Children.Add(resetButton);
         start.TextChanged += (s,e) => UpdateReset(); end.TextChanged += (s,e) => UpdateReset();
 
-        headerHost = new StackPanel { Background = Paint("#F6F7FB") };
+        headerHost = new StackPanel { Background = Brushes.White };
         DockTop(card, Rule()); DockTop(card, headerHost); DockTop(card, Rule());
         totals = Text("",12,muted);
         var footer = new Border {
@@ -180,7 +171,7 @@ public partial class Board
             Height = 46, Padding = new Thickness(18,0,13,0)
         };
         var selectionBar = new DockPanel();
-        export = Quiet("선택 항목 엑셀 내보내기", Export);
+        export = Btn("선택 항목 엑셀 내보내기", Export);
         WithIcon(export, "선택 항목 엑셀 내보내기", exportIcon, muted);
         export.ToolTip = "목록에서 체크한 업무를 엑셀로 저장합니다.";
         ToolTipService.SetShowOnDisabled(export,true);
@@ -244,20 +235,15 @@ public partial class Board
             int count = jobs.Count(j => !j.Trash && (tab == "전체" || (j.State == "완료") == (tab == "완료")));
             var button = Quiet(tab, () => SwitchMode(tab)); button.Height = 40;
             var label = Line();
-            label.Children.Add(Text(tab,14,selected ? accent : muted,true));
-            label.Children.Add(new Border {
-                Margin = new Thickness(6,0,0,0), Padding = new Thickness(6,1,6,1), CornerRadius = new CornerRadius(8),
-                VerticalAlignment = VerticalAlignment.Center, Background = Paint(selected ? "#ECEAFC" : "#F0F1F5"),
-                Child = Text(count.ToString(),11,selected ? accent : muted,true)
-            });
+            label.Children.Add(Text(tab + "  " + count,14,selected ? ink : muted,selected));
             button.Content = label; AutomationProperties.SetName(button,tab+" "+count+"건");
             var block = new DockPanel { Margin = new Thickness(0,0,5,0) };
             var underline = new Border { Height = 2, Margin = new Thickness(6,2,6,0),
-                                         Background = selected ? accent : Brushes.Transparent };
+                                         Background = selected ? ink : Brushes.Transparent };
             DockPanel.SetDock(underline,Dock.Bottom); block.Children.Add(underline); button.VerticalAlignment=VerticalAlignment.Center; block.Children.Add(button);
             tabs.Children.Add(block);
         }
-        trashButton.Background = mode == "휴지통" ? Paint("#E8E6FA") : Brushes.Transparent;
+        trashButton.Background = mode == "휴지통" ? Paint("#E9ECEA") : Brushes.Transparent;
     }
 
     void Draw()
@@ -304,27 +290,23 @@ public partial class Board
     static Border Badge(string state)
     {
         bool waiting = state == "회신대기", done = state == "완료";
-        var fg = Paint(waiting ? "#805516" : done ? "#27684E" : "#4B479E");
+        var fg = Paint(waiting ? "#AD7B20" : done ? "#27684E" : "#4C78AC");
         var label = Line();
         label.Children.Add(new Ellipse { Width=6, Height=6, Fill=fg, Margin=new Thickness(0,0,5,0), VerticalAlignment=VerticalAlignment.Center });
-        label.Children.Add(Text(state,12,fg,true));
-        return new Border { CornerRadius=new CornerRadius(10), Padding=new Thickness(8,3,8,3),
-            Background=Paint(waiting ? "#FBF0D9" : done ? "#E2F3EB" : "#EEECFD"),
-            HorizontalAlignment=HorizontalAlignment.Left, VerticalAlignment=VerticalAlignment.Center, Child=label };
+        label.Children.Add(Text(state,13,ink));
+        return new Border { HorizontalAlignment=HorizontalAlignment.Left, VerticalAlignment=VerticalAlignment.Center, Child=label };
     }
 
     void AddRow(Job job, int count)
     {
         var row = Row(49);
-        rows.Children.Add(new Border { BorderBrush=Paint("#EDEEF3"), BorderThickness=new Thickness(0,0,0,1), Child=row });
+        rows.Children.Add(new Border { BorderBrush=Paint("#ECEEEC"), BorderThickness=new Thickness(0,0,0,1), Child=row });
         var check = Check(job.Title+" 선택"); check.IsChecked = picks.Contains(job);
         if (!job.Trash) { Cell(row,0,check); checks.Add(job,check); }
         var menu = RowMenu(job); row.ContextMenu = menu;
-        Action highlight = () => row.Background = check.IsChecked == true ? Paint("#F0EEFC") :
-            row.IsMouseOver || menu.IsOpen ? Paint("#F6F6FC") : Brushes.White;
+        Action highlight = () => row.Background = row.IsMouseOver || menu.IsOpen ? Paint("#F7F9F7") : Brushes.White;
         row.MouseEnter += (s,e) => highlight(); row.MouseLeave += (s,e) => highlight();
         menu.Opened += (s,e) => highlight(); menu.Closed += (s,e) => highlight();
-        check.Checked += (s,e) => highlight(); check.Unchecked += (s,e) => highlight();
         check.Click += (s,e) => {
             if (check.IsChecked == true) picks.Add(job); else picks.Remove(job); UpdateSelection(count);
         };
