@@ -15,6 +15,8 @@ using Microsoft.Win32;
 public class Job {
  public string Title="",Who="",Received="",Due="",State="진행중",Memo="",Finished="";
  public byte[] Body;
+ public List<JobAttachment> Attachments=new List<JobAttachment>();
+ public bool ShouldSerializeAttachments(){return Attachments!=null && Attachments.Count>0;}
  public bool Trash;
  public Job Copy(){return (Job)MemberwiseClone();}
 }
@@ -67,7 +69,7 @@ public partial class Board : Window {
      var next=j.Copy();next.Trash=!j.Trash;Update(j,next);return true;
  }
  bool DeleteForever(Job j){
-     if(!j.Trash || MessageBox.Show("‘"+j.Title+"’을 영구 삭제할까요? 본문과 캡처도 삭제됩니다.","영구 삭제",MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No)!=MessageBoxResult.Yes)return false;
+     if(!j.Trash || MessageBox.Show("‘"+j.Title+"’을 영구 삭제할까요? 본문과 캡처, 첨부파일도 삭제됩니다.","영구 삭제",MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No)!=MessageBoxResult.Yes)return false;
      Save(jobs.Where(item=>item!=j).ToList(),true);Draw();return true;
  }
  ContextMenu RowMenu(Job j){
@@ -158,8 +160,9 @@ public partial class Board : Window {
  var received=Metadata(meta,"접수일",j.Received,"연-월-일");
  var due=Metadata(meta,"완료예정일",j.Due,"날짜 또는 미정");
  var memo=Metadata(meta,"비고",j.Memo,"비고 입력");
- var bodyLabel=Text("업무 내용",14,ink,true);
- bodyLabel.Margin=new Thickness(0,0,0,6);DockTop(article,bodyLabel);
+ bool dirty=false,closed=false;
+ var attachments=new List<JobAttachment>(j.Attachments??new List<JobAttachment>());
+ AttachmentControls(w,article,attachments,j.Trash,()=>dirty=true);
  var body=new RichTextBox(Document(j)) { VerticalScrollBarVisibility=ScrollBarVisibility.Auto,
      Padding=new Thickness(12), FontSize=15, Background=Brushes.White, Foreground=ink,
      BorderThickness=new Thickness(0), IsDocumentEnabled=true };
@@ -187,9 +190,9 @@ public partial class Board : Window {
      footer.Children.Add(Danger("영구 삭제",()=>{if(DeleteForever(j))w.Close();}));
      footer.Children.Add(FooterAction("복원",()=>{if(MoveTrash(j))w.Close();}));w.ShowDialog();return;
  }
- bool dirty=false,closed=false;foreach(var t in new[]{title,who,received,due,memo})t.TextChanged+=(o,e)=>dirty=true;state.SelectionChanged+=(o,e)=>dirty=true;body.TextChanged+=(o,e)=>dirty=true;
+ foreach(var t in new[]{title,who,received,due,memo})t.TextChanged+=(o,e)=>dirty=true;state.SelectionChanged+=(o,e)=>dirty=true;body.TextChanged+=(o,e)=>dirty=true;
  DataObject.AddPastingHandler(body,(o,e)=>{if(e.DataObject.GetDataPresent(DataFormats.Bitmap)){var image=e.DataObject.GetData(DataFormats.Bitmap) as BitmapSource;if(image!=null){e.CancelCommand();body.Selection.Text="";var picture=new Image{Source=image};ConfigureImage(w,body,picture);var inline=new InlineUIContainer(picture,body.CaretPosition);body.CaretPosition=inline.ElementEnd;}}else if(e.DataObject.GetDataPresent(DataFormats.UnicodeText))e.FormatToApply=DataFormats.UnicodeText;});
- Func<bool> save=()=>{var date=Date(received.Text,DateTime.Today.Year);if(title.Text.Trim()==""||!date.HasValue){MessageBox.Show("업무명과 접수일을 확인하세요.");return false;}var k=j.Copy();k.Title=title.Text.Trim();k.Who=who.Text;k.Received=Day(date.Value);k.Due=DueValue(due.Text,date.Value.Year);k.Memo=memo.Text;SetStatus(k,(string)state.SelectedItem);using(var m=new MemoryStream()){new TextRange(body.Document.ContentStart,body.Document.ContentEnd).Save(m,DataFormats.XamlPackage);k.Body=m.ToArray();}Update(old,k);closed=true;return true;};
+ Func<bool> save=()=>{var date=Date(received.Text,DateTime.Today.Year);if(title.Text.Trim()==""||!date.HasValue){MessageBox.Show("업무명과 접수일을 확인하세요.");return false;}var k=j.Copy();k.Attachments=attachments;k.Title=title.Text.Trim();k.Who=who.Text;k.Received=Day(date.Value);k.Due=DueValue(due.Text,date.Value.Year);k.Memo=memo.Text;SetStatus(k,(string)state.SelectedItem);using(var m=new MemoryStream()){new TextRange(body.Document.ContentStart,body.Document.ContentEnd).Save(m,DataFormats.XamlPackage);k.Body=m.ToArray();}Update(old,k);closed=true;return true;};
  Action finish=()=>{if(save())w.Close();};
  footer.Children.Add(Btn(j.State=="완료"?"다시 진행":"작업완료",()=>{
      state.SelectedItem=j.State=="완료"?"진행중":"완료";finish();
