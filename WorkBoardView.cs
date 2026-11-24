@@ -341,30 +341,62 @@ public partial class Board
         var name = new TextBlock { Text=job.Title, FontSize=14, TextTrimming=TextTrimming.CharacterEllipsis };
         title.Content=name; title.ToolTip=job.Title; title.Margin=new Thickness(0,0,12,0);
         AutomationProperties.SetName(title,job.Title); Cell(row,1,title);
-        Cell(row,2,Value(job.Received));
+        EditableCell(row,2,job,Value(job.Received),"접수일",job.Received,(next,value)=>{
+            var date=Date(value,DateTime.Today.Year);
+            if(!date.HasValue)throw new FormatException("접수일은 11/24 또는 2026-11-24 형식으로 입력하세요.");
+            next.Received=Day(date.Value);
+        });
         var due = Value(String.IsNullOrEmpty(job.Due) ? "미정" : job.Due);
         if (job.State != "완료" && Date(job.Due,DateTime.Today.Year) < DateTime.Today) due.Foreground=Paint("#A33F46");
-        Cell(row,3,due); Cell(row,4,Badge(job.State));
-        var memo=Value(job.Memo); memo.Background=Brushes.Transparent; Cell(row,5,memo);
+        EditableCell(row,3,job,due,"완료예정일",job.Due,(next,value)=>{
+            var received=Date(job.Received,DateTime.Today.Year);
+            next.Due=DueValue(value,received.HasValue ? received.Value.Year : DateTime.Today.Year);
+        });
+        EditableCell(row,4,job,Badge(job.State),"상태",job.State,SetStatus,true);
+        EditableCell(row,5,job,Value(job.Memo),"비고",job.Memo,(next,value)=>next.Memo=value);
         if (job.Trash) row.MouseLeftButtonUp += (s,e) => { if (!e.Handled) Edit(job); };
-        else memo.MouseLeftButtonDown += (s,e) => { if (e.ClickCount == 2) EditMemo(row,job,memo); };
     }
 
-    void EditMemo(Grid row, Job job, TextBlock label)
+    void EditableCell(Grid row,int column,Job job,FrameworkElement display,string caption,string original,
+                      Action<Job,string> apply,bool isStatus=false)
     {
-        var input=new TextBox { Text=job.Memo, Margin=new Thickness(0,0,6,0) };
-        row.Children.Remove(label); Cell(row,5,input); input.Focus(); input.SelectAll();
-        bool ended=false;
-        Action commit=() => {
-            if (ended) return;
-            ended=true;
-            try { var next=job.Copy(); next.Memo=input.Text; Update(job,next); }
-            catch (Exception ex) { MessageBox.Show(ex.Message); Draw(); }
-        };
-        input.LostKeyboardFocus += (s,e) => commit();
-        input.KeyDown += (s,e) => {
-            if (e.Key == Key.Enter) { e.Handled=true; commit(); }
-            if (e.Key == Key.Escape) { e.Handled=true; ended=true; Draw(); }
+        if (job.Trash) { Cell(row,column,display); return; }
+        display.IsHitTestVisible=false;
+        var host=new Border { Background=Brushes.Transparent, Child=display,
+                              ToolTip=caption+" · 두 번 클릭하여 수정"+(String.IsNullOrEmpty(original)?"":"\n"+original) };
+        Cell(row,column,host);
+        host.MouseLeftButtonDown+=(s,e)=>{
+            if(e.ClickCount!=2 || host.Child!=display)return;
+            e.Handled=true;
+            var input=isStatus ? null : new TextBox { Text=original??"" };
+            var choices=isStatus ? new ComboBox { ItemsSource=States, SelectedItem=original, Height=32 } : null;
+            Control editor=(Control)input??choices;
+            editor.Margin=new Thickness(0,0,6,0);
+            editor.VerticalAlignment=VerticalAlignment.Center;
+            AutomationProperties.SetName(editor,caption);
+            bool finished=false;
+            Action<bool> finish=save=>{
+                if(finished)return;
+                finished=true;
+                var value=input!=null ? input.Text : (string)choices.SelectedItem;
+                host.Child=display;
+                if(!save || value==(original??""))return;
+                try { var next=job.Copy();apply(next,value);Update(job,next); }
+                catch(Exception ex){MessageBox.Show(this,ex.Message,caption);}
+            };
+            host.Child=editor;
+            editor.PreviewKeyDown+=(o,k)=>{
+                if(k.Key==Key.Enter || k.Key==Key.Escape){k.Handled=true;finish(k.Key==Key.Enter);}
+            };
+            editor.LostKeyboardFocus+=(o,k)=>{
+                if(choices==null || (!choices.IsDropDownOpen && !choices.IsKeyboardFocusWithin))finish(true);
+            };
+            editor.Focus();
+            if(input!=null)input.SelectAll();
+            else {
+                choices.DropDownClosed+=(o,k)=>finish(true);
+                choices.IsDropDownOpen=true;
+            }
         };
     }
 }

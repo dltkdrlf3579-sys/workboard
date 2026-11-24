@@ -31,10 +31,22 @@ public partial class Board : Window {
  DateTime d; s=(s??"").Trim().Replace('/','-').Replace('.','-');
  if(s.Split('-').Length==2)s=year+"-"+s;
  return DateTime.TryParseExact(s,new[]{"yyyy-M-d","yyyy-MM-dd","yyyy-M-dd","yyyy-MM-d"},CultureInfo.InvariantCulture,DateTimeStyles.None,out d)?d:(DateTime?)null;}
+ static string DueValue(string raw,int year){
+     raw=(raw??"").Trim();var date=Date(raw,year);return date.HasValue ? Day(date.Value) : raw;
+ }
+ static void SetStatus(Job job,string state){
+     job.State=state;
+     if(state!="완료")job.Finished="";
+     else if(String.IsNullOrEmpty(job.Finished))job.Finished=Day(DateTime.Today);
+ }
+ static readonly string[] States={"진행중","회신대기","완료"};
+ internal event EventHandler JobsChanged;
+ internal int UnfinishedCount { get { return jobs.Count(j=>!j.Trash && j.State!="완료"); } }
  void Save(List<Job> next, bool purge=false){
  string temp=file+".tmp"; using(var stream=File.Create(temp)){serializer.Serialize(stream,next);stream.Flush(true);}
  if(purge)File.Delete(file+".bak");
  if(File.Exists(file))File.Replace(temp,file,purge?null:file+".bak");else File.Move(temp,file); jobs=next;
+ if(JobsChanged!=null)JobsChanged(this,EventArgs.Empty);
  }
  void Update(Job old,Job j){var next=jobs.ToList();if(old==null)next.Insert(0,j);else next[next.IndexOf(old)]=j;Save(next);if(old!=null && picks.Remove(old) && !j.Trash)picks.Add(j);Draw();}
  public Board(){
@@ -65,8 +77,8 @@ public partial class Board : Window {
          menu.Items.Add(Option("영구 삭제",()=>DeleteForever(j)));
      }else{
          var states=new MenuItem{Header="상태 변경"};
-         foreach(string state in new[]{"진행중","회신대기","완료"}){
-             var item=Option(state,()=>{var next=j.Copy();next.State=state;next.Finished=state=="완료"?Day(DateTime.Today):"";Update(j,next);});
+         foreach(string state in States){
+             var item=Option(state,()=>{var next=j.Copy();SetStatus(next,state);Update(j,next);});
              item.IsEnabled=state!=j.State;states.Items.Add(item);
          }
          menu.Items.Add(states);menu.Items.Add(Option("업무명 복사",()=>Clipboard.SetText(j.Title)));
@@ -128,7 +140,7 @@ public partial class Board : Window {
  var article=new DockPanel { Margin=new Thickness(28,15,28,20) };
  page.Children.Add(article);
  var fields=new StackPanel(); DockTop(article,fields);
- var state=new ComboBox { Style=(Style)theme["StateSelector"], ItemsSource=new[]{"진행중","회신대기","완료"},
+ var state=new ComboBox { Style=(Style)theme["StateSelector"], ItemsSource=States,
      SelectedItem=j.State, HorizontalAlignment=HorizontalAlignment.Left, Width=99, Height=28,
      Foreground=accent, FontWeight=FontWeights.SemiBold };
  System.Windows.Automation.AutomationProperties.SetName(state,"상태"); 
@@ -177,7 +189,7 @@ public partial class Board : Window {
  }
  bool dirty=false,closed=false;foreach(var t in new[]{title,who,received,due,memo})t.TextChanged+=(o,e)=>dirty=true;state.SelectionChanged+=(o,e)=>dirty=true;body.TextChanged+=(o,e)=>dirty=true;
  DataObject.AddPastingHandler(body,(o,e)=>{if(e.DataObject.GetDataPresent(DataFormats.Bitmap)){var image=e.DataObject.GetData(DataFormats.Bitmap) as BitmapSource;if(image!=null){e.CancelCommand();body.Selection.Text="";var picture=new Image{Source=image};ConfigureImage(w,body,picture);var inline=new InlineUIContainer(picture,body.CaretPosition);body.CaretPosition=inline.ElementEnd;}}else if(e.DataObject.GetDataPresent(DataFormats.UnicodeText))e.FormatToApply=DataFormats.UnicodeText;});
- Func<bool> save=()=>{var date=Date(received.Text,DateTime.Today.Year);if(title.Text.Trim()==""||!date.HasValue){MessageBox.Show("업무명과 접수일을 확인하세요.");return false;}var k=j.Copy();k.Title=title.Text.Trim();k.Who=who.Text;k.Received=Day(date.Value);string raw=due.Text.Trim();var dd=Date(raw,date.Value.Year);k.Due=dd.HasValue?Day(dd.Value):raw;k.Memo=memo.Text;k.State=(string)state.SelectedItem;k.Finished=k.State=="완료"?(j.Finished==""?Day(DateTime.Today):j.Finished):"";using(var m=new MemoryStream()){new TextRange(body.Document.ContentStart,body.Document.ContentEnd).Save(m,DataFormats.XamlPackage);k.Body=m.ToArray();}Update(old,k);closed=true;return true;};
+ Func<bool> save=()=>{var date=Date(received.Text,DateTime.Today.Year);if(title.Text.Trim()==""||!date.HasValue){MessageBox.Show("업무명과 접수일을 확인하세요.");return false;}var k=j.Copy();k.Title=title.Text.Trim();k.Who=who.Text;k.Received=Day(date.Value);k.Due=DueValue(due.Text,date.Value.Year);k.Memo=memo.Text;SetStatus(k,(string)state.SelectedItem);using(var m=new MemoryStream()){new TextRange(body.Document.ContentStart,body.Document.ContentEnd).Save(m,DataFormats.XamlPackage);k.Body=m.ToArray();}Update(old,k);closed=true;return true;};
  Action finish=()=>{if(save())w.Close();};
  footer.Children.Add(Btn(j.State=="완료"?"다시 진행":"작업완료",()=>{
      state.SelectedItem=j.State=="완료"?"진행중":"완료";finish();
@@ -193,5 +205,4 @@ public partial class Board : Window {
  }
  w.PreviewKeyDown+=(o,e)=>{if(e.Key==Key.S&&Keyboard.Modifiers==ModifierKeys.Control){e.Handled=true;try{finish();}catch(Exception ex){MessageBox.Show(ex.Message);}}};w.Closing+=(o,e)=>{if(closed||!dirty)return;var a=MessageBox.Show(w,"변경 사항을 저장하고 닫을까요?","업무 상세",MessageBoxButton.YesNoCancel);try{e.Cancel=a==MessageBoxResult.Cancel||(a==MessageBoxResult.Yes&&!save());}catch(Exception ex){MessageBox.Show(ex.Message);e.Cancel=true;}};if(old==null)w.ContentRendered+=(o,e)=>title.Focus();w.ShowDialog();}
  void Export(){var selected=Visible().Where(picks.Contains).ToList();if(selected.Count==0)return;var detail=MessageBox.Show("선택한 업무 "+selected.Count+"건에 본문과 캡처를 담은 상세 시트도 포함할까요?","엑셀 내보내기",MessageBoxButton.YesNoCancel);if(detail==MessageBoxResult.Cancel)return;var dlg=new SaveFileDialog{Filter="Excel (*.xlsx)|*.xlsx",FileName="업무일정_"+Day(DateTime.Today)};if(dlg.ShowDialog()!=true)return;ExcelReport.Write(dlg.FileName,selected,detail==MessageBoxResult.Yes);MessageBox.Show("엑셀 파일을 저장했습니다.");}
- [STAThread] public static void Main(){bool first;using(var gate=new System.Threading.Mutex(true,"Local\\PersonalWorkBoard_4827",out first)){if(!first){MessageBox.Show("업무대장이 이미 열려 있습니다.");return;}try{new Application().Run(new Board());}catch(Exception ex){MessageBox.Show(ex.Message,"업무대장");}}}
 }
